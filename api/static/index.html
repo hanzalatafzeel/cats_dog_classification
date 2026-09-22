@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cat vs Dog Classifier</title>
+  <style>
+    :root { --c1: #2563eb; --c2: #f97316; --bg: #0f172a; --card: #1e293b; --txt: #e2e8f0; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+           background: var(--bg); color: var(--txt); min-height: 100vh;
+           display: flex; align-items: center; justify-content: center; }
+    .card { background: var(--card); border-radius: 20px; padding: 40px;
+            max-width: 560px; width: 100%; box-shadow: 0 25px 60px rgba(0,0,0,.5); }
+    h1 { font-size: 1.6rem; margin-bottom: 6px; }
+    .sub { color: #94a3b8; margin-bottom: 24px; }
+    .drop { border: 2px dashed #475569; border-radius: 14px; padding: 40px 20px;
+            text-align: center; cursor: pointer; transition: .2s; }
+    .drop:hover, .drop.dragover { border-color: var(--c1); background: rgba(37,99,235,.06); }
+    .drop img { max-width: 220px; max-height: 220px; border-radius: 10px; }
+    .empty { color: #94a3b8; font-size: .95rem; }
+    input[type=file] { display: none; }
+    .result { margin-top: 20px; padding: 18px; border-radius: 12px; text-align: center;
+              font-size: 1.15rem; font-weight: 600; display: none; }
+    .result.cat { background: rgba(37,99,235,.15); border: 1px solid var(--c1); }
+    .result.dog { background: rgba(249,115,22,.15); border: 1px solid var(--c2); }
+    .bar { height: 8px; border-radius: 99px; background: #334155; margin-top: 12px; overflow: hidden; }
+    .bar span { display: block; height: 100%; width: 0; background: linear-gradient(90deg,var(--c1),var(--c2)); transition: width .4s; }
+    button { margin-top: 16px; width: 100%; padding: 12px; border: 0; border-radius: 10px;
+             background: linear-gradient(90deg, var(--c1), var(--c2)); color: #fff;
+             font-size: 1rem; font-weight: 600; cursor: pointer; }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+    .err { color: #f87171; margin-top: 12px; font-size: .9rem; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>🐱 vs 🐶 CNN Classifier</h1>
+    <p class="sub">From-scratch PyTorch CNN · 128×128 · Real Dogs-vs-Cats dataset</p>
+
+    <div class="drop" id="drop">
+      <div id="preview"><p class="empty">Click or drop an image of a cat or a dog here</p></div>
+    </div>
+    <input type="file" id="file" accept="image/*" />
+    <button id="predictBtn" disabled>Predict</button>
+
+    <div class="result" id="result"></div>
+    <div class="err" id="err"></div>
+  </div>
+
+  <script>
+    const drop = document.getElementById('drop');
+    const file = document.getElementById('file');
+    const preview = document.getElementById('preview');
+    const btn = document.getElementById('predictBtn');
+    const result = document.getElementById('result');
+    const err = document.getElementById('err');
+    let picked = null;
+
+    drop.addEventListener('click', () => file.click());
+    drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('dragover'); });
+    drop.addEventListener('dragleave', () => drop.classList.remove('dragover'));
+    drop.addEventListener('drop', e => {
+      e.preventDefault(); drop.classList.remove('dragover');
+      if (e.dataTransfer.files[0]) show(e.dataTransfer.files[0]);
+    });
+    file.addEventListener('change', () => show(file.files[0]));
+
+    function show(f) {
+      picked = f; err.textContent = '';
+      const img = document.createElement('img');
+      img.src = URL.createObjectURL(f);
+      preview.innerHTML = ''; preview.appendChild(img);
+      btn.disabled = false; result.style.display = 'none';
+    }
+
+    btn.addEventListener('click', async () => {
+      if (!picked) return;
+      btn.disabled = true; btn.textContent = 'Predicting…';
+      const fd = new FormData(); fd.append('file', picked);
+      try {
+        const r = await fetch('/predict', { method: 'POST', body: fd });
+        const d = await r.json();
+        if (d.error) throw new Error(d.error);
+        result.className = 'result ' + d.label;
+        result.style.display = 'block';
+        result.innerHTML = `${d.label.toUpperCase()} · ${d.confidence.toFixed(2)}% confidence`
+          + `<div class="bar"><span style="width:${d.confidence}%"></span></div>`;
+        if (d.label === 'cat') { result.className = 'result cat'; } else { result.className = 'result dog'; }
+      } catch (e) {
+        err.textContent = 'Error: ' + e.message;
+      } finally {
+        btn.disabled = false; btn.textContent = 'Predict';
+      }
+    });
+  </script>
+</body>
+</html>

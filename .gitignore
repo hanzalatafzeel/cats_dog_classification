@@ -1,0 +1,30 @@
+# Virtual environment
+.venv/
+venv/
+ENV/
+
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.ipynb_checkpoints/
+
+# Data artifacts (62MB - regenerate via `python download_data.py`)
+data/
+data.zip
+
+# Model & outputs ARE committed: keeps the repo self-contained so the
+# Dockerfile builds and the report's plots are available.
+# models/
+# outputs/
+# test_images/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Misc
+*.log
+.pytest_cache/
