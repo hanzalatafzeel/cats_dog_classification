@@ -11,7 +11,8 @@ Real photo dataset: **Microsoft "Dogs vs Cats"** (~25,000 real photos, streamed 
 - 🏗️ **CNN from scratch**: 4 double-conv (Conv→BatchNorm→ReLU×2) blocks + Global Avg Pool + Dense head + Dropout
 - 🛡️ **Leak-free split**: stratified 80/20 train/val split done *before* augmentation
 - 🔄 **Real-time augmentation**: random flip, rotation, color jitter
-- 📊 **Metrics & plots**: Accuracy / Precision / Recall / F1 + training curves + confusion matrix
+- 📊 **Metrics & plots**: Accuracy / Precision / Recall / F1 + ROC curve + confusion matrix
+- 📈 **Live dashboard**: `/dashboard` — KPI cards, ROC chart, per-class metrics, dataset stats + in-page prediction
 - 📓 **One notebook, 3 platforms**: same training runs on **Google Colab**, **Kaggle**, and **local**
 - 🌐 **Hostable**: FastAPI server with a drag-and-drop web UI + `Dockerfile`
 - 📄 **Full write-up**: see [`docs/PROJECT_REPORT.md`](docs/PROJECT_REPORT.md)
@@ -68,7 +69,7 @@ python src/predict.py path/to/cat_or_dog.jpg
 # 6. Evaluate a checkpoint (uses the model's own mean/std)
 python src/evaluate.py
 
-# 7. Run the web app → http://localhost:8000
+# 7. Run the web app → http://localhost:8000 (dashboard → /dashboard)
 uvicorn api.main:app --reload --port 8000
 ```
 
@@ -98,19 +99,32 @@ Steps: **Runtime → Run all**.
 
 ## 🌐 Hosting
 
-### Option A — Docker (Render, Railway, any VPS)
+### Option A — Render.com (free tier, recommended)
+
+One-click deploy from GitHub via the included [`render.yaml`](render.yaml) blueprint:
+
+1. Push this repo to GitHub: `git push -u origin main`
+2. Go to [render.com](https://render.com) → **New +** → **Blueprint**
+3. Connect this repo and hit **Apply**. Render reads `render.yaml`, builds the
+   Docker image (CPU-only torch for fast/cheap builds) and serves the app at
+   `https://cats-dog-classifier.onrender.com`.
+4. Open `/` for the upload UI and `/dashboard` for the metrics dashboard.
+
+Render free tier notes:
+- **0.1 CPU / 512 MB RAM**, spins down after ~15 min idle (first request takes
+  ~60 s to wake the service).
+- 750 instance-hours/month and 500 pipeline (build) minutes/month.
+- The image is self-contained: model, dashboard data and sample images are baked
+  in, so no persistent disk is needed.
+
+### Option B — Docker (Railway, any VPS)
 
 ```bash
 docker build -t cats-dogs-cnn .
 # mount trained weights so they aren't baked in:
 docker run -v $(pwd)/models:/app/models -p 8000:8000 cats-dogs-cnn
 ```
-
-### Option B — Render.com (free tier)
-
-1. Push this repo to GitHub
-2. New **Web Service** → runtime **Docker**
-3. Deploy. The API serves the UI at `/` and predictions at `/predict`.
+The container listens on `$PORT` (Render's default) or `8000` locally.
 
 ### Option C — Manual / VPS
 
@@ -121,11 +135,15 @@ uvicorn api.main:app --host 0.0.0.0 --port 8000
 
 ### API endpoints
 
-| Method | Path       | Description                                  |
-|--------|------------|----------------------------------------------|
-| GET    | `/`        | HTML upload page                             |
-| GET    | `/health`  | `{"status": "ok", "model_loaded": true}`     |
-| POST   | `/predict` | multipart `file` → `{"label": "cat","confidence": 98.2}` |
+| Method | Path        | Description                                  |
+|--------|-------------|----------------------------------------------|
+| GET    | `/`         | HTML upload page                             |
+| GET    | `/dashboard`| Beautiful metrics dashboard (all KPIs)       |
+| GET    | `/api/metrics` | JSON with every metric (auto-generated on first call) |
+| GET    | `/health`   | `{"status": "ok", "model_loaded": true}`     |
+| POST   | `/predict`  | multipart `file` → `{"label": "cat","confidence": 98.2}` |
+| GET    | `/outputs/*`| diagnostic plots (sample predictions …)      |
+| GET    | `/test/*`   | sample images for quick try-out              |
 
 ---
 

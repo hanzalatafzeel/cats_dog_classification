@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>CatDog CNN · Model Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg0:#0b1220; --bg1:#121a2b; --card:rgba(255,255,255,.045);
+    --border:rgba(255,255,255,.09); --txt:#e8edf6; --mut:#93a3bd;
+    --cy:#22d3ee; --vi:#8b5cf6; --em:#34d399; --am:#fbbf24; --ro:#fb7185;
+    --grad:linear-gradient(135deg,#22d3ee,#8b5cf6);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,Inter,sans-serif;
+       background:radial-gradient(1200px 700px at 15% -10%,rgba(139,92,246,.16),transparent 60%),
+                  radial-gradient(1000px 600px at 110% 10%,rgba(34,211,238,.13),transparent 55%),
+                  linear-gradient(160deg,var(--bg0),var(--bg1));
+       color:var(--txt);min-height:100vh}
+  a{color:var(--cy);text-decoration:none}
+  /* ---------- nav ---------- */
+  nav{display:flex;align-items:center;justify-content:space-between;
+      padding:18px clamp(16px,4vw,42px);border-bottom:1px solid var(--border);
+      backdrop-filter:blur(8px);position:sticky;top:0;z-index:5}
+  .brand{display:flex;align-items:center;gap:12px;font-weight:700;font-size:1.05rem}
+  .brand .logo{width:38px;height:38px;border-radius:11px;background:var(--grad);
+               display:grid;place-items:center;font-size:1.15rem;box-shadow:0 6px 20px rgba(139,92,246,.35)}
+  nav .links{display:flex;gap:8px}
+  nav .links a{padding:8px 14px;border-radius:10px;color:var(--mut);font-size:.9rem;transition:.2s}
+  nav .links a:hover{color:var(--txt);background:rgba(255,255,255,.06)}
+  .container{padding:clamp(16px,4vw,42px);max-width:1240px;margin:0 auto}
+  /* ---------- hero ---------- */
+  .hero h1{font-size:clamp(1.7rem,4vw,2.6rem);letter-spacing:-.02em;margin-bottom:10px}
+  .hero p{color:var(--mut);max-width:720px;line-height:1.6}
+  .badges{display:flex;flex-wrap:wrap;gap:10px;margin-top:20px}
+  .badge{display:flex;align-items:center;gap:8px;padding:8px 14px;border-radius:99px;
+         background:var(--card);border:1px solid var(--border);font-size:.82rem;color:var(--mut)}
+  .badge b{color:var(--txt);font-weight:600}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--em);box-shadow:0 0 10px var(--em)}
+  /* ---------- grid ---------- */
+  .grid{display:grid;gap:18px;margin-top:26px}
+  .kpis{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}
+  .row2{grid-template-columns:1.1fr 1fr}
+  .row3{grid-template-columns:1fr 1fr}
+  @media (max-width:900px){.row2,.row3{grid-template-columns:1fr}}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:18px;
+        padding:22px;backdrop-filter:blur(6px)}
+  .card h3{font-size:.95rem;letter-spacing:.04em;text-transform:uppercase;color:var(--mut);
+           margin-bottom:16px;display:flex;align-items:center;gap:8px;font-weight:600}
+  .card h3::before{content:"";width:9px;height:9px;border-radius:3px;background:var(--grad)}
+  /* ---------- KPI rings ---------- */
+  .kpi{display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center}
+  .ring{--p:0;--c:var(--cy);width:110px;height:110px;border-radius:50%;
+        background:conic-gradient(var(--c) calc(var(--p)*1%),rgba(255,255,255,.07) 0);
+        display:grid;place-items:center;position:relative}
+  .ring::before{content:"";position:absolute;inset:12px;border-radius:50%;background:var(--bg1)}
+  .ring span{position:relative;font-size:1.45rem;font-weight:700}
+  .kpi .k{font-size:.82rem;color:var(--mut);text-transform:uppercase;letter-spacing:.08em}
+  .kpi .delta{font-size:.74rem;color:var(--mut)}
+  .kpi .delta b{color:var(--em);font-weight:600}
+  /* ---------- confusion matrix ---------- */
+  .cm{display:grid;grid-template-columns:auto auto auto;gap:10px;justify-content:center;
+      align-items:center;user-select:none}
+  .cm .axis{color:var(--mut);font-size:.8rem;text-transform:uppercase;letter-spacing:.05em;text-align:center}
+  .cm .cell{width:118px;height:96px;border-radius:14px;display:flex;flex-direction:column;
+            align-items:center;justify-content:center;gap:2px;transition:.2s;border:1px solid var(--border)}
+  .cm .cell:hover{transform:translateY(-2px)}
+  .cm .cell .n{font-size:1.6rem;font-weight:800}
+  .cm .cell .pct{font-size:.75rem;opacity:.85}
+  .cm .corner{color:transparent}
+  .legend{display:flex;gap:18px;justify-content:center;margin-top:16px;font-size:.78rem;color:var(--mut)}
+  .legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+  /* ---------- charts ---------- */
+  .chart{position:relative;height:280px}
+  /* ---------- prediction ---------- */
+  .pred-box{display:flex;flex-direction:column;gap:14px}
+  .drop{border:2px dashed rgba(148,163,184,.5);border-radius:14px;padding:26px;text-align:center;
+        cursor:pointer;transition:.2s}
+  .drop:hover,.drop.dragover{border-color:var(--cy);background:rgba(34,211,238,.05)}
+  .drop img{max-width:230px;max-height:220px;border-radius:10px}
+  .drop .empty{color:var(--mut);font-size:.9rem}
+  input[type=file]{display:none}
+  .presets{display:flex;gap:8px;flex-wrap:wrap}
+  .presets button{flex:1;min-width:110px;padding:9px;border-radius:10px;border:1px solid var(--border);
+                  background:var(--card);color:var(--mut);cursor:pointer;transition:.2s;font-size:.82rem}
+  .presets button:hover{color:var(--txt);border-color:var(--cy)}
+  .res{margin-top:4px;padding:16px 18px;border-radius:13px;text-align:center;font-size:1.1rem;
+       font-weight:700;display:none;border:1px solid}
+  .res.cat{background:rgba(34,211,238,.1);border-color:var(--cy);color:var(--cy)}
+  .res.dog{background:rgba(139,92,246,.12);border-color:var(--vi);color:#c4b5fd}
+  .bar{height:8px;border-radius:99px;background:rgba(255,255,255,.08);margin-top:12px;overflow:hidden}
+  .bar span{display:block;height:100%;width:0;background:var(--grad);transition:width .5s}
+  .err{color:var(--ro);font-size:.85rem}
+  /* ---------- model info ---------- */
+  .kv{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px}
+  .kv .it{background:rgba(0,0,0,.18);border:1px solid var(--border);border-radius:12px;padding:12px}
+  .kv .it .l{font-size:.72rem;color:var(--mut);text-transform:uppercase;letter-spacing:.06em}
+  .kv .it .v{font-size:1.05rem;font-weight:700;margin-top:4px}
+  .norm{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.82rem;line-height:1.9;
+        color:var(--mut);background:rgba(0,0,0,.22);padding:14px;border-radius:12px;overflow-x:auto}
+  .norm b{color:var(--cy)}
+  .sample{width:100%;border-radius:14px;border:1px solid var(--border)}
+  .load{display:flex;align-items:center;gap:12px;color:var(--mut);padding:18px 0}
+  .spinner{width:20px;height:20px;border-radius:50%;border:3px solid rgba(255,255,255,.15);
+           border-top-color:var(--cy);animation:spin .8s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  footer{border-top:1px solid var(--border);margin-top:34px;padding:18px 0;color:var(--mut);
+         font-size:.8rem;text-align:center}
+</style>
+</head>
+<body>
+<nav>
+  <div class="brand"><span class="logo">🐾</span> CatDog CNN · Model Dashboard</div>
+  <div class="links">
+    <a href="/">Upload Page</a>
+    <a href="https://github.com/hanzalatafzeel/cats_dog_classification">GitHub</a>
+  </div>
+</nav>
+
+<div class="container">
+  <!-- hero -->
+  <div class="hero">
+    <h1>Cats-vs-Dogs CNN — everything you need to know, at a glance.</h1>
+    <p>A fully from-scratch convolutional neural network (PyTorch) trained on 1,920 real photos from the
+       Microsoft Dogs-vs-Cats dataset. This dashboard shows the evaluation of the model stored in
+       <code>models/cat_dog_cnn.pt</code> plus a live inference widget.</p>
+    <div class="badges" id="badges"><div class="badge"><span class="dot"></span> Loading…</div></div>
+  </div>
+
+  <!-- KPI cards -->
+  <div class="grid kpis" id="kpis"></div>
+
+  <!-- row 2: confusion matrix + ROC -->
+  <div class="grid row2">
+    <div class="card">
+      <h3>Confusion Matrix · Validation (480 images)</h3>
+      <div class="cm" id="cm"></div>
+      <div class="legend">
+        <span><i style="background:#22d3ee"></i>Cat</span>
+        <span><i style="background:#8b5cf6"></i>Dog</span>
+      </div>
+    </div>
+    <div class="card">
+      <h3>ROC Curve</h3>
+      <div class="chart"><canvas id="rocChart"></canvas></div>
+    </div>
+  </div>
+
+  <!-- row 3: per-class + dataset -->
+  <div class="grid row3">
+    <div class="card">
+      <h3>Per-class Precision &amp; Recall</h3>
+      <div class="chart"><canvas id="pcChart"></canvas></div>
+    </div>
+    <div class="card">
+      <h3>Dataset Distribution</h3>
+      <div class="chart"><canvas id="dsChart"></canvas></div>
+    </div>
+  </div>
+
+  <!-- row 4: model + normalization -->
+  <div class="grid row3">
+    <div class="card">
+      <h3>Model Architecture</h3>
+      <div class="kv" id="arch"></div>
+    </div>
+    <div class="card">
+      <h3>Input Normalization (computed from train pixels, stored in checkpoint)</h3>
+      <div class="norm" id="norm">…</div>
+    </div>
+  </div>
+
+  <!-- row 5: sample predictions + live predict -->
+  <div class="grid row2">
+    <div class="card">
+      <h3>Sample Predictions (real photos)</h3>
+      <img class="sample" id="sampleImg" src="/outputs/sample_predictions.png"
+           alt="Sample predictions" />
+    </div>
+    <div class="card">
+      <h3>Try it — live inference</h3>
+      <div class="pred-box">
+        <div class="drop" id="drop">
+          <div id="preview"><p class="empty">Click, drop, or tap a preset to classify a photo</p></div>
+        </div>
+        <input type="file" id="file" accept="image/*" />
+        <div class="presets" id="presets"></div>
+        <div class="res" id="result"></div>
+        <div class="err" id="err"></div>
+      </div>
+    </div>
+  </div>
+
+  <footer>CatDog CNN · from-scratch PyTorch · data: Microsoft Dogs-vs-Cats · charts: Chart.js</footer>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const COLORS = { cy:'#22d3ee', vi:'#8b5cf6', em:'#34d399', am:'#fbbf24', ro:'#fb7185' };
+const fmt = n => n.toLocaleString('en-US');
+
+async function init() {
+  const load = $('badges'); load.innerHTML = '<div class="badge"><span class="dot"></span> Evaluating model — computing metrics… (first load takes ~20s)</div>';
+  let d;
+  try {
+    const r = await fetch('/api/metrics');
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    d = await r.json();
+  } catch (e) {
+    load.innerHTML = '<div class="badge" style="color:#fb7185">⚠️ Could not load metrics: ' + e.message + '. Run `python src/evaluate.py` first.</div>';
+    return;
+  }
+  renderBadges(d);
+  renderKpis(d);
+  renderCM(d);
+  renderROC(d);
+  renderPerClass(d);
+  renderDataset(d);
+  renderModel(d);
+  renderNorm(d);
+  setupPredict();
+}
+
+/* ---------------- hero badges ---------------- */
+function renderBadges(d) {
+  const m = d.model, mu = d.metrics;
+  const badges = [
+    ['Model', m.name + ' (from scratch)'],
+    ['Parameters', (m.params/1e6).toFixed(2) + 'M'],
+    ['Input size', m.image_size + '×' + m.image_size],
+    ['Val. accuracy', (mu.accuracy*100).toFixed(1) + '%'],
+    ['ROC-AUC', mu.roc_auc.toFixed(3)],
+    ['Checkpoint', (m.file_size_bytes/1048576).toFixed(2) + ' MB'],
+    ['Train / Val', d.dataset.train + ' / ' + d.dataset.val],
+  ];
+  $('badges').innerHTML = badges.map(([k,v]) =>
+    `<div class="badge"><b>${k}:</b>&nbsp;${v}</div>`).join('');
+}
+
+/* ---------------- KPI rings ---------------- */
+function renderKpis(d) {
+  const mu = d.metrics, ck = d.checkpoint_metrics || {};
+  const items = [
+    ['Accuracy', mu.accuracy, COLORS.cy, ck.accuracy],
+    ['Precision', mu.precision, COLORS.em, ck.precision],
+    ['Recall', mu.recall, COLORS.am, ck.recall],
+    ['F1-Score', mu.f1, COLORS.vi, ck.f1],
+    ['ROC-AUC', mu.roc_auc, COLORS.ro, ck.roc_auc],
+  ];
+  $('kpis').innerHTML = items.map(([label, v, color, ckv]) => `
+    <div class="card kpi">
+      <div class="ring" style="--p:${(v*100).toFixed(1)};--c:${color}">
+        <span>${(v*100).toFixed(1)}%</span>
+      </div>
+      <div class="k">${label}</div>
+      <div class="delta">${ckv != null ? 'checkpoint <b>' + (ckv*100).toFixed(1) + '%</b>' : ''}</div>
+    </div>`).join('');
+}
+
+/* ---------------- confusion matrix ---------------- */
+function renderCM(d) {
+  const { tn, fp, fn, tp } = d.confusion_matrix;
+  const total = tn + fp + fn + tp;
+  const cell = (truth, pred, n, c) => `
+    <div class="cell" style="background:${hexA(c, .08 + .75*(n/total))};border-color:${hexA(c,.5)}">
+      <div class="n" style="color:${c}">${n}</div>
+      <div class="pct">${(100*n/total).toFixed(1)}% of ${total}</div>
+      <div style="font-size:.7rem;color:var(--mut)">${truth} → ${pred}</div>
+    </div>`;
+  const axisBadge = t => `<div class="axis">${t}</div>`;
+  $('cm').innerHTML =
+    '<div class="corner"></div>' + axisBadge('Pred → Cat') + axisBadge('Pred → Dog') +
+    axisBadge('Actual Cat =') + cell('cat','cat',tn,'#22d3ee') + cell('cat','dog',fp,'#8b5cf6') +
+    axisBadge('Actual Dog =') + cell('dog','cat',fn,'#22d3ee') + cell('dog','dog',tp,'#8b5cf6');
+}
+
+/* ---------------- charts ---------------- */
+function renderROC(d) {
+  const r = d.roc;
+  new Chart($('rocChart'), { type:'line',
+    data:{ datasets:[{ label:'CatDogCNN (AUC ' + r.auc.toFixed(3) + ')',
+      data:r.tpr.map((t,i)=>({x:r.fpr[i],y:t})), borderColor:COLORS.cy,
+      backgroundColor:'rgba(34,211,238,.12)', fill:true, tension:.25, borderWidth:2.5,
+      pointRadius:0 },
+      { label:'Random chance', data:[{x:0,y:0},{x:1,y:1}],
+        borderColor:'rgba(255,255,255,.25)', borderDash:[5,5], borderWidth:1.5, pointRadius:0 }] },
+    options:{ responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ labels:{ color:COLORS.mut||'#93a3bd', boxWidth:14 } } },
+      scales:{ x:{ type:'linear', min:0, max:1, title:{display:true,text:'False positive rate',color:'#93a3bd'},
+                 ticks:{color:'#93a3bd', stepSize:.2}, grid:{color:'rgba(255,255,255,.06)'} },
+               y:{ min:0, max:1, title:{display:true,text:'True positive rate',color:'#93a3bd'},
+                   ticks:{color:'#93a3bd', stepSize:.2}, grid:{color:'rgba(255,255,255,.06)'} } } } });
+}
+
+function renderPerClass(d) {
+  const pc = d.per_class;
+  new Chart($('pcChart'), { type:'bar',
+    data:{ labels:['Cat','Dog'],
+      datasets:[ {label:'Precision', data:[pc.cat.precision, pc.dog.precision],
+                  backgroundColor:'rgba(34,211,238,.75)', borderRadius:8},
+                 {label:'Recall', data:[pc.cat.recall, pc.dog.recall],
+                  backgroundColor:'rgba(139,92,246,.75)', borderRadius:8} ] },
+    options:{ responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ labels:{ color:'#93a3bd', boxWidth:14 } } },
+      scales:{ x:{ ticks:{color:'#93a3bd'}, grid:{color:'rgba(255,255,255,.05)'} },
+               y:{ min:0, max:1, ticks:{color:'#93a3bd', stepSize:.2, callback:v=>(v*100)+'%'},
+                   grid:{color:'rgba(255,255,255,.06)'} } } } });
+}
+
+function renderDataset(d) {
+  const ds = d.dataset;
+  new Chart($('dsChart'), { type:'doughnut',
+    data:{ labels:['Cats','Dogs'],
+      datasets:[{ data:[ds.cats, ds.dogs], backgroundColor:[COLORS.cy,COLORS.vi],
+                   borderColor:'#121a2b', borderWidth:3 }] },
+    options:{ responsive:true, maintainAspectRatio:false, cutout:'62%',
+      plugins:{ legend:{ position:'bottom', labels:{ color:'#93a3bd', boxWidth:14 } },
+                tooltip:{ callbacks:{ label:(c)=>c.label+': '+fmt(c.parsed)+' photos' } } } } });
+}
+
+/* ---------------- model info ---------------- */
+function renderModel(d) {
+  const m = d.model;
+  const arch = [
+    ['Name','CatDogCNN'], ['Parameters', fmt(m.params)],
+    ['Input','' + m.image_size + '×' + m.image_size + '×3'],
+    ['Blocks','4 × double-conv'],
+    ['Channels','32 → 64 → 128 → 256'],
+    ['Dense head', m.fc_units + ' units'],
+    ['Dropout', m.dropout],
+    ['Checkpoint size', (m.file_size_bytes/1048576).toFixed(2) + ' MB'],
+    ['Classes', m.labels.join(' / ')],
+  ];
+  $('arch').innerHTML = arch.map(([k,v])=>`<div class="it"><div class="l">${k}</div><div class="v">${v}</div></div>`).join('');
+}
+
+function renderNorm(d) {
+  const m = d.model, p = v => v.map(x=>x.toFixed(4)).join(', ');
+  $('norm').innerHTML = `mean = [<b>${p(m.mean)}</b>]<br/>std&nbsp;&nbsp; = [<b>${p(m.std)}</b>]`;
+}
+
+/* ---------------- live prediction ---------------- */
+function setupPredict() {
+  const drop = $('drop'), file = $('file'), preview = $('preview'),
+        btn = null, result = $('result'), err = $('err');
+  let picked = null;
+
+  // presets (if test images are served)
+  ['sample_cat_1','sample_dog_1','sample_cat_2','sample_dog_2'].forEach(name => {
+    const b = document.createElement('button');
+    b.textContent = name.replace('sample_','').split('_').join(' ');
+    b.onclick = async () => {
+      result.style.display='none'; err.textContent='';
+      b.disabled = true; b.textContent = 'Predicting…';
+      try {
+        const r = await fetch('/test/' + name + '.jpg');
+        if (!r.ok) throw new Error('no preset image');
+        const blob = await r.blob();
+        const img = document.createElement('img');
+        img.src = URL.createObjectURL(blob);
+        preview.innerHTML=''; preview.appendChild(img);
+        await submit(blob, name + '.jpg', result, err);
+      } catch(e) { err.textContent = 'Preset not available: ' + e.message; }
+      finally { b.disabled=false; b.textContent = name.replace('sample_','').split('_').join(' '); }
+    };
+    $('presets').appendChild(b);
+  });
+
+  drop.addEventListener('click', () => file.click());
+  drop.addEventListener('dragover', e => { e.preventDefault(); drop.classList.add('dragover'); });
+  drop.addEventListener('dragleave', () => drop.classList.remove('dragover'));
+  drop.addEventListener('drop', e => {
+    e.preventDefault(); drop.classList.remove('dragover');
+    if (e.dataTransfer.files[0]) show(e.dataTransfer.files[0]);
+  });
+  file.addEventListener('change', () => { if (file.files[0]) show(file.files[0]); });
+
+  function show(f) {
+    picked = f; err.textContent=''; result.style.display='none';
+    const img = document.createElement('img');
+    img.src = URL.createObjectURL(f);
+    preview.innerHTML=''; preview.appendChild(img);
+    submit(f, f.name, result, err);
+  }
+}
+
+async function submit(file, name, result, err) {
+  if (!file) return;
+  err.textContent=''; result.style.display='block';
+  result.innerHTML = 'Classifying…';
+  const fd = new FormData(); fd.append('file', file, name);
+  try {
+    const r = await fetch('/predict', { method: 'POST', body: fd });
+    const d = await r.json();
+    if (d.detail) throw new Error(d.detail);
+    result.className = 'res ' + d.label;
+    result.innerHTML = `${d.label === 'cat' ? '🐱' : '🐶'} ${d.label.toUpperCase()}
+      · ${d.confidence.toFixed(2)}% confidence
+      <div class="bar"><span style="width:${d.confidence}%"></span></div>`;
+  } catch (e) {
+    result.style.display='none';
+    err.textContent = 'Error: ' + e.message;
+  }
+}
+
+function hexA(hex, a) {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${n>>16&255},${n>>8&255},${n&255},${a.toFixed(3)})`;
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  if (typeof Chart === 'undefined') {
+    $('badges').innerHTML = '<div class="badge" style="color:#fb7185">Chart.js failed to load (no internet). Charts hidden; rest of the dashboard still works.</div>';
+  }
+  init();
+});
+</script>
+</body>
+</html>

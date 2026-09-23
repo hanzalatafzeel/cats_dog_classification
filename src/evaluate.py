@@ -9,6 +9,8 @@ Run:  python src/evaluate.py [--model path/to/cat_dog_cnn.pt]
 """
 
 import argparse
+import datetime
+import json
 import os
 import sys
 
@@ -21,11 +23,13 @@ import torch.utils.data
 from PIL import Image
 from sklearn.metrics import (
     accuracy_score,
+    auc,
     confusion_matrix,
     f1_score,
     precision_score,
     recall_score,
     roc_auc_score,
+    roc_curve,
 )
 from sklearn.model_selection import train_test_split
 
@@ -113,9 +117,107 @@ def plot_sample_predictions(model, device, norm, count=6):
     plt.close(fig)
 
 
+def dataset_counts(dataset_dir=config.DATA_DIR):
+    cats = sum(1 for f in os.listdir(os.path.join(dataset_dir, "cats"))
+               if f.lower().endswith((".jpg", ".jpeg", ".png"))) \
+        if os.path.isdir(os.path.join(dataset_dir, "cats")) else 0
+    dogs = sum(1 for f in os.listdir(os.path.join(dataset_dir, "dogs"))
+               if f.lower().endswith((".jpg", ".jpeg", ".png"))) \
+        if os.path.isdir(os.path.join(dataset_dir, "dogs")) else 0
+    return cats, dogs
+
+
+def build_metrics_dict(model, state, file_size, y_true, preds, probs,
+                       val_size, cats, dogs):
+    """Assemble every metric we can compute into a plain-JSON-friendly dict."""
+    cm = confusion_matrix(y_true, preds)
+    tn, fp, fn, tp = cm.ravel()
+    fpr, tpr, _ = roc_curve(y_true, probs)
+    metric_dict = {
+        "accuracy": float(accuracy_score(y_true, preds)),
+        "precision": float(precision_score(y_true, preds)),
+        "recall": float(recall_score(y_true, preds)),
+        "f1": float(f1_score(y_true, preds)),
+        "roc_auc": float(roc_auc_score(y_true, probs)),
+    }
+
+    # per-class: row = actual, col = predicted
+    cat_recall = tn / (tn + fp + 1e-9)
+    dog_recall = tp / (tp + fn + 1e-9)
+    cat_precision = tn / (tn + fn + 1e-9)
+    dog_precision = tp / (tp + fp + 1e-9)
+
+    return {
+        "model": {
+            "name": "CatDogCNN",
+            "params": model.num_params(),
+            "image_size": int(state.get("image_size", config.IMAGE_SIZE)),
+            "conv_dims": config.ARCH["conv_dims"],
+            "fc_units": config.ARCH["fc_units"],
+            "dropout": config.ARCH["dropout"],
+            "labels": list(state.get("labels", config.LABELS)),
+            "mean": [float(v) for v in state.get("mean", [])],
+            "std": [float(v) for v in state.get("std", [])],
+            "file_size_bytes": file_size,
+        },
+        "dataset": {
+            "cats": cats,
+            "dogs": dogs,
+            "total": cats + dogs,
+            "train": int((cats + dogs) * config.TRAIN_SPLIT),
+            "val": val_size,
+            "split": config.TRAIN_SPLIT,
+        },
+        "metrics": metric_dict,
+        "checkpoint_metrics": {
+            k: float(v) for k, v in state.get("metrics", {}).items()
+        },
+        "confusion_matrix": {
+            "tn": int(tn), "fp": int(fp), "fn": int(fn), "tp": int(tp),
+        },
+        "per_class": {
+            "cat": {"precision": float(cat_precision), "recall": float(cat_recall)},
+            "dog": {"precision": float(dog_precision), "recall": float(dog_recall)},
+        },
+        "roc": {
+            "fpr": [float(v) for v in fpr],
+            "tpr": [float(v) for v in tpr],
+            "auc": float(auc(fpr, tpr)),
+        },
+        "generated_at": datetime.datetime.now().isoformat(timespec="seconds"),
+    }
+
+
+def generate_metrics_json(output_path, model_path=config.MODEL_PATH):
+    """Run a full evaluation and write outputs/metrics.json (no plots)."""
+    state = torch.load(model_path, map_location="cpu", weights_only=False)
+    norm = {
+        "mean": np.asarray(state.get("mean", [0.485, 0.456, 0.406]), dtype=np.float32),
+        "std": np.asarray(state.get("std", [0.229, 0.224, 0.225]), dtype=np.float32),
+    }
+    model = CatDogCNN(image_size=config.IMAGE_SIZE, arch=config.ARCH)
+    model.load_state_dict(state["state_dict"])
+    model, device = to_device(model)
+
+    loader = val_loader(config.DATA_DIR, config.TRAIN_SPLIT, config.SEED,
+                        config.IMAGE_SIZE, norm)
+    preds, probs, labels = batch_predict(model, loader, device)
+    cats, dogs = dataset_counts()
+
+    data = build_metrics_dict(
+        model, state, os.path.getsize(model_path),
+        labels, preds, probs, len(loader.dataset), cats, dogs,
+    )
+    with open(output_path, "w") as f:
+        json.dump(data, f, indent=2)
+    return data
+
+
 def main():
     parser = argparse.ArgumentParser(description="Evaluate a trained checkpoint")
     parser.add_argument("--model", default=config.MODEL_PATH)
+    parser.add_argument("--no-json", action="store_true",
+                        help="skip writing outputs/metrics.json")
     args = parser.parse_args()
 
     config.ensure_dirs()
@@ -141,6 +243,17 @@ def main():
     print(f"Recall   : {recall_score(labels, preds):.4f}")
     print(f"F1       : {f1_score(labels, preds):.4f}")
     print(f"ROC-AUC  : {roc_auc_score(labels, probs):.4f}")
+
+    if not args.no_json:
+        cats, dogs = dataset_counts()
+        payload = build_metrics_dict(
+            model, state, os.path.getsize(args.model),
+            labels, preds, probs, len(loader.dataset), cats, dogs,
+        )
+        json_path = os.path.join(config.OUTPUTS_DIR, "metrics.json")
+        with open(json_path, "w") as f:
+            json.dump(payload, f, indent=2)
+        print(f"Exported {json_path}")
 
     cm_path = os.path.join(config.OUTPUTS_DIR, "confusion_matrix.png")
     plot_confusion_matrix(labels, preds, cm_path)

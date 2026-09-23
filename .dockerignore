@@ -1,0 +1,15 @@
+# Keep the Docker build context small and skip anything already ignored
+.git
+.venv
+venv
+env
+data
+data.zip
+__pycache__
+*.pyc
+.pytest_cache
+.ipynb_checkpoints
+.vscode
+.idea
+.DS_Store
+*.log

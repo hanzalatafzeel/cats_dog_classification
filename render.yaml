@@ -1,0 +1,14 @@
+# Render Blueprint - deploy the Cats & Dogs classifier for free.
+# Usage: New + | Blueprint | connect this GitHub repo | Apply.
+# Service will be live at https://cats-dog-classifier.onrender.com
+services:
+  - type: web
+    name: cats-dog-classifier
+    runtime: docker
+    repo: https://github.com/hanzalatafzeel/cats_dog_classification
+    plan: free                      # 0.1 CPU / 512 MB, spins down after 15 min idle
+    autoDeploy: true
+    healthCheckPath: /health        # Render marks service live when this returns 200
+    envVars:
+      - key: OMP_NUM_THREADS
+        value: "1"

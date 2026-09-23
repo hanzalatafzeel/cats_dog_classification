@@ -27,9 +27,10 @@ set of 480 images**. The final model achieves **78.3 % accuracy, 79.0 % precisio
 network on a classification task where cats and dog photos are visually heterogeneous.
 
 The project also ships a **cross-platform Jupyter notebook** (runs unchanged on Google Colab, Kaggle,
-or a local machine), a **FastAPI web service with a drag-and-drop UI**, a Dockerfile for hosting, unit
-tests, and a self-describing model checkpoint that stores its own normalization statistics — so
-predictions always match training.
+or a local machine), a **FastAPI web service** with a drag-and-drop UI **and a live metrics dashboard**
+(KPI cards, ROC curve, confusion-matrix heatmap, per-class metrics, dataset stats, and in-page
+prediction), a Dockerfile for hosting, unit tests, and a self-describing model checkpoint that stores
+its own normalization statistics — so predictions always match training.
 
 ---
 
